@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ターゲットに当てる</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.1.9/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.1.3/socket.io.js"></script>
+  </head>
+
+  <body>
+    <h1>スマホからのセンサ情報を受信</h1>
+    <div>
+      <div>あなたのID: <span id="myid"></span></div>
+      <button id="connect">ルームに入る</button>
+      <div>受信した情報はコンソールログで確認してください</div>
+    </div>
+    <script>
+      let socket = io.connect();
+
+      let btn = document.querySelector("#connect");
+      let b = 0;
+      let g = 0;
+
+      let myid = sessionStorage.getItem('clientId');
+      if (!myid) {
+        myid = Math.random().toString(36).substring(2, 15);
+        sessionStorage.setItem('clientId', myid);
+      }
+      
+      document.querySelector("#myid").innerHTML = myid;
+      console.log("あなたのID: ", myid);
+
+      btn.addEventListener("click", function () {
+        socket.emit("join", "game");
+        btn.remove();
+      });
+    
+      socket.on("sensor", function (data) {
+        g = parseFloat(data.g);
+        b = parseFloat(data.b);
+        console.log(data);
+      });
+
+      let x = 0;
+let y = 0;
+let r = 40;
+let speed = 0.1;
+let targetX;
+let targetY;
+let targetSpeed = 2; // ターゲットの動く速さ
+let startTime;
+let hitTime;
+let hasStarted = false;
+
+function setup() {
+  createCanvas(800, 800, WEBGL);
+  camera(0, 800, 100, 0, 0, 0, 0, 1, 0);
+  noStroke();
+
+  targetX = 0;   // 中心からスタート
+  targetY = -200;
+}
+
+function draw() {
+  background(0);
+  orbitControl();
+  ambientLight(50,50,50);
+  directionalLight(20, 200, 10, -1, -1, -1);
+  pointLight(20, 20, 200, 0, 0, 800);
+
+  // --- ターゲットの動き ---
+  targetX += targetSpeed;
+  if (targetX > 300 || targetX < -300) {
+    targetSpeed *= -1; // 端で反転
+  }
+
+  // ターゲットを描画
+  push();
+  fill(255, 0, 0);
+  translate(targetX, targetY, 0);
+  rectMode(CENTER);
+  rect(0, 0, 50, 50);
+  pop();
+
+  // --- 板（地面） ---
+  push();
+  rotateX((-PI * b) / 180);
+  rotateY((PI * g) / 180);
+  translate(0, 0, -50);
+  fill(100);
+  box(800, 800, 30);
+  pop();
+
+  // --- 計測開始 ---
+  if (!hasStarted) {
+    startTime = millis();
+    hasStarted = true;
+  }
+
+  // --- ボールの動き ---
+  push();
+  x += speed * g;
+  y += speed * b;
+
+  translate(x, y, -x * sin((PI * g) / 180) - y * sin((PI * b) / 180));
+  specularMaterial(200);
+  sphere(r);
+  pop();
+
+  // --- 衝突判定 ---
+  let dx = x - targetX;
+  let dy = y - targetY;
+  let distance = sqrt(dx * dx + dy * dy);
+
+  if (distance < r + 25 && !hitTime) {
+    hitTime = millis();
+    let elapsed = (hitTime - startTime) / 1000;
+    console.log(`ぶつかるまでの時間: ${elapsed.toFixed(2)} 秒`);
+    noLoop(); // 止めたくなければ削除
+  }
+}
+
+      
+    </script>
+  </body>
+</html>
+
