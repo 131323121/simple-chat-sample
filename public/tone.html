@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>傾けてドレミ楽器演奏</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.min.js"></script>
+  </head>
+
+  <body>
+    <h1>傾きでドレミ楽器</h1>
+    <div>
+      <div>あなたのID: <span id="myid"></span></div>
+      <button id="connect">ルームに入る</button>
+      <p>⬆上下で音の高さ、⬅➡で音量をコントロール</p>
+    </div>
+
+    <script>
+      let socket = io.connect();
+      let btn = document.querySelector("#connect");
+      let g = 0; // 左右
+      let b = 0; // 上下
+      let colors = [];
+      let lastNote = null;
+
+      // 🎹 Tone.js setup
+      const synth = new Tone.Synth({
+        oscillator: { type: "triangle" },
+        envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.2 }
+      }).toDestination();
+
+      // 音階（ドレミファソラシド）
+      const scale = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
+
+      // ID生成
+      let myid = sessionStorage.getItem("clientId");
+      if (!myid) {
+        myid = Math.random().toString(36).substring(2, 15);
+        sessionStorage.setItem("clientId", myid);
+      }
+      document.querySelector("#myid").innerHTML = myid;
+
+      // 接続ボタン
+      btn.addEventListener("click", async () => {
+        await Tone.start();
+        socket.emit("join", "game");
+        btn.remove();
+        console.log("音楽開始");
+      });
+
+      // センサ受信
+      socket.on("sensor", data => {
+        g = parseFloat(data.g);
+        b = parseFloat(data.b);
+      });
+
+      // p5.js setup
+      function setup() {
+        createCanvas(400, 400);
+        textAlign(CENTER, CENTER);
+        noStroke();
+      }
+
+      function draw() {
+        background(10, 30, 50, 100);
+
+        // 🎚️ 左右で音量調整
+        let volume = map(g, -45, 45, -30, 0, true);
+        synth.volume.value = volume;
+
+        // 🎵 上下で音階決定
+        let noteIndex = floor(map(b, -45, 45, scale.length - 1, 0, true));
+        let currentNote = scale[noteIndex];
+
+        // 音が変わったら鳴らす
+        if (currentNote !== lastNote) {
+          synth.triggerAttackRelease(currentNote, "8n");
+          lastNote = currentNote;
+
+          // 光の玉アニメーション追加
+          colors.push({
+            r: random(100, 255),
+            g: random(100, 255),
+            b: random(100, 255),
+            x: random(width),
+            y: random(height),
+            size: random(50, 150),
+            alpha: 255
+          });
+        }
+
+        // 光の玉描画
+        for (let c of colors) {
+          fill(c.r, c.g, c.b, c.alpha);
+          ellipse(c.x, c.y, c.size);
+          c.alpha -= 4;
+        }
+        colors = colors.filter(c => c.alpha > 0);
+
+        // 情報表示
+        fill(255);
+        textSize(20);
+        text(`Note: ${lastNote || "-"}`, width / 2, 40);
+        text(`Volume: ${synth.volume.value.toFixed(1)} dB`, width / 2, 70);
+      }
+    </script>
+  </body>
+</html>
